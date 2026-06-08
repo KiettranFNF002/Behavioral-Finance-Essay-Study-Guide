@@ -5,3 +5,6 @@
 !*.html
 !.gitignore
 !README.md
+
+# Ignore the local quiz
+quiz.html
