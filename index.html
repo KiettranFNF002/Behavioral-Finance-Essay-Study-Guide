@@ -525,6 +525,58 @@
             border-color: rgba(239, 68, 68, 0.25);
             color: #f87171;
         }
+
+        /* Practice Mode Styles */
+        .solution-box {
+            position: relative;
+        }
+        .solution-box.is-hidden .solution-text {
+            filter: blur(8px);
+            opacity: 0.15;
+            pointer-events: none;
+            user-select: none;
+        }
+        .solution-box.is-hidden .katex-display, 
+        .solution-box.is-hidden .katex {
+            opacity: 0.05 !important;
+        }
+        .solution-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.35);
+            backdrop-filter: blur(5px);
+            border-radius: 16px;
+            z-index: 5;
+            transition: var(--transition);
+        }
+        .reveal-btn {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border: none;
+            border-radius: 10px;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 12px 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+        }
+        .reveal-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+        }
+        .reveal-btn:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>
 <body>
@@ -556,10 +608,16 @@
                 <div class="q-subtitle" id="top-bar-subtitle">Select a question</div>
                 <div class="q-title" id="top-bar-title">Behavioral Finance - Written Response Guides</div>
             </div>
-            <div class="tabs" id="view-tabs" style="display: none;">
-                <button class="tab-button active" onclick="setViewMode('dual')">Dual View</button>
-                <button class="tab-button" onclick="setViewMode('en')">English</button>
-                <button class="tab-button" onclick="setViewMode('vn')">Tiếng Việt</button>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <div class="tabs" id="mode-tabs" style="display: none;">
+                    <button class="tab-button active" id="btn-study" onclick="setPracticeMode(false)">📚 Study</button>
+                    <button class="tab-button" id="btn-practice" onclick="setPracticeMode(true)">🧠 Practice</button>
+                </div>
+                <div class="tabs" id="view-tabs" style="display: none;">
+                    <button class="tab-button active" onclick="setViewMode('dual')">Dual View</button>
+                    <button class="tab-button" onclick="setViewMode('en')">English</button>
+                    <button class="tab-button" onclick="setViewMode('vn')">Tiếng Việt</button>
+                </div>
             </div>
         </div>
 
@@ -580,6 +638,32 @@
         let activeChapterIndex = -1;
         let activeQuestionIndex = -1;
         let viewMode = 'dual'; // 'en', 'vn', 'dual'
+        let practiceMode = localStorage.getItem('bf-written-practice-mode') === 'true';
+        let revealedSolutions = new Set();
+
+        function setPracticeMode(isPractice) {
+            practiceMode = isPractice;
+            localStorage.setItem('bf-written-practice-mode', isPractice);
+            
+            const btnStudy = document.getElementById('btn-study');
+            const btnPractice = document.getElementById('btn-practice');
+            if (isPractice) {
+                btnStudy.classList.remove('active');
+                btnPractice.classList.add('active');
+            } else {
+                btnStudy.classList.add('active');
+                btnPractice.classList.remove('active');
+            }
+            
+            if (activeChapterIndex !== -1 && activeQuestionIndex !== -1) {
+                renderQuestionContent();
+            }
+        }
+
+        function revealSolution(lang) {
+            revealedSolutions.add(lang);
+            renderQuestionContent();
+        }
 
         // Render the Sidebar chapters menu
         function initSidebar() {
@@ -643,6 +727,8 @@
             activeChapterIndex = chIdx;
             activeQuestionIndex = qIdx;
 
+            revealedSolutions.clear(); // Reset hidden solutions on new question
+
             const newItem = document.getElementById(`q-item-${chIdx}-${qIdx}`);
             if (newItem) newItem.classList.add('active');
 
@@ -661,6 +747,7 @@
                 throwOnError: false
             });
             document.getElementById('view-tabs').style.display = 'flex';
+            document.getElementById('mode-tabs').style.display = 'flex';
 
             renderQuestionContent();
         }
@@ -719,6 +806,28 @@
             return html;
         }
 
+        function createSolutionBox(lang, markdownContent, labelText) {
+            const sBox = document.createElement('div');
+            sBox.className = 'solution-box';
+            
+            const isHidden = practiceMode && !revealedSolutions.has(lang);
+            if (isHidden) {
+                sBox.classList.add('is-hidden');
+            }
+            
+            sBox.innerHTML = `<div class="section-label">${labelText}</div><div class="solution-text">${renderMarkdownAndMath(markdownContent)}</div>`;
+            
+            if (isHidden) {
+                const overlay = document.createElement('div');
+                overlay.className = 'solution-overlay';
+                
+                const btnText = lang === 'en' ? '👁️ Reveal Answer' : '👁️ Hiện đáp án';
+                overlay.innerHTML = `<button class="reveal-btn" onclick="revealSolution('${lang}')">${btnText}</button>`;
+                sBox.appendChild(overlay);
+            }
+            return sBox;
+        }
+
         // Render Markdown content and KaTeX Math formulas
         function renderQuestionContent() {
             const container = document.getElementById('content-area');
@@ -746,9 +855,7 @@
                     layout.appendChild(pBox);
                 }
 
-                const sBox = document.createElement('div');
-                sBox.className = 'solution-box';
-                sBox.innerHTML = `<div class="section-label">Detailed Explanation & Solution</div><div class="solution-text">${renderMarkdownAndMath(q.solution_en)}</div>`;
+                const sBox = createSolutionBox('en', q.solution_en, 'Detailed Explanation & Solution');
                 layout.appendChild(sBox);
 
                 container.appendChild(layout);
@@ -766,9 +873,7 @@
                     layout.appendChild(pBox);
                 }
 
-                const sBox = document.createElement('div');
-                sBox.className = 'solution-box';
-                sBox.innerHTML = `<div class="section-label">Hướng dẫn giải chi tiết</div><div class="solution-text">${renderMarkdownAndMath(q.solution_vn)}</div>`;
+                const sBox = createSolutionBox('vn', q.solution_vn, 'Hướng dẫn giải chi tiết');
                 layout.appendChild(sBox);
 
                 container.appendChild(layout);
@@ -790,9 +895,7 @@
                     enCol.appendChild(pBox);
                 }
 
-                const sBoxEn = document.createElement('div');
-                sBoxEn.className = 'solution-box';
-                sBoxEn.innerHTML = `<div class="section-label">Detailed Solution</div><div class="solution-text">${renderMarkdownAndMath(q.solution_en)}</div>`;
+                const sBoxEn = createSolutionBox('en', q.solution_en, 'Detailed Solution');
                 enCol.appendChild(sBoxEn);
 
                 // Vietnamese Column
@@ -807,9 +910,7 @@
                     vnCol.appendChild(pBoxVn);
                 }
 
-                const sBoxVn = document.createElement('div');
-                sBoxVn.className = 'solution-box';
-                sBoxVn.innerHTML = `<div class="section-label">Hướng dẫn giải</div><div class="solution-text">${renderMarkdownAndMath(q.solution_vn)}</div>`;
+                const sBoxVn = createSolutionBox('vn', q.solution_vn, 'Hướng dẫn giải');
                 vnCol.appendChild(sBoxVn);
 
                 dualContainer.appendChild(enCol);
@@ -879,6 +980,16 @@
                 const group = document.getElementById(`ch-group-${chIdx}`);
                 group.classList.add('collapsed');
             });
+            // Initialize Practice/Study button UI based on local state
+            const btnStudy = document.getElementById('btn-study');
+            const btnPractice = document.getElementById('btn-practice');
+            if (practiceMode) {
+                btnStudy.classList.remove('active');
+                btnPractice.classList.add('active');
+            } else {
+                btnStudy.classList.add('active');
+                btnPractice.classList.remove('active');
+            }
             // Render math in the sidebar menu
             renderMathInElement(document.getElementById('chapters-menu'), {
                 delimiters: [
