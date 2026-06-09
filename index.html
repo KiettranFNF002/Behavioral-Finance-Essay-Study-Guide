@@ -765,8 +765,9 @@
         function setViewMode(mode) {
             viewMode = mode;
             
-            // Toggle active class on tab buttons
-            const buttons = document.querySelectorAll('.tab-button');
+            // Toggle active class on tab buttons under view-tabs only
+            const viewTabs = document.getElementById('view-tabs');
+            const buttons = viewTabs.querySelectorAll('.tab-button');
             buttons.forEach(btn => btn.classList.remove('active'));
 
             if (mode === 'dual') buttons[0].classList.add('active');
